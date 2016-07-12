@@ -16,7 +16,7 @@
     "nowarn": [
       "CS1591"
     ],
-    "xmlDoc": true
+    "xmldoc": false
   },
   "dependencies": {
     "Microsoft.AspNetCore.Http": "1.1.0-*",

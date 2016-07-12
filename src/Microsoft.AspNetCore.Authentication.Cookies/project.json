@@ -18,7 +18,7 @@
     "nowarn": [
       "CS1591"
     ],
-    "xmlDoc": true
+    "xmldoc": false
   },
   "dependencies": {
     "Microsoft.AspNetCore.Authentication": "1.1.0-*",

@@ -17,7 +17,7 @@
     "nowarn": [
       "CS1591"
     ],
-    "xmlDoc": true
+    "xmldoc": false
   },
   "dependencies": {
     "Microsoft.Extensions.Logging.Abstractions": "1.1.0-*",

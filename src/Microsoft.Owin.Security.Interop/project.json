@@ -6,7 +6,7 @@
     "nowarn": [
       "CS1591"
     ],
-    "xmlDoc": true
+    "xmldoc": false
   },
   "description": "A compatibility layer for sharing authentication tickets between Microsoft.Owin.Security and Microsoft.AspNetCore.Authentication.",
   "packOptions": {
