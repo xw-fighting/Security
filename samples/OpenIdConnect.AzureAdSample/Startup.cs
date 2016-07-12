@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
@@ -110,21 +111,45 @@ namespace OpenIdConnect.AzureAdSample
                     return;
                 }
 
+                if (context.Request.Path.Equals("/signout-remote"))
+                {
+                    await context.Authentication.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                    await context.Authentication.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties
+                    {
+                        RedirectUri = "/signedout"
+                    });
+
+                    return;
+                }
+
+                if (context.Request.Path.Equals("/signedout"))
+                {
+                    context.Response.ContentType = "text/html";
+                    await context.Response.WriteAsync($"<html><body>You have been signed out.<br>{Environment.NewLine}");
+                    await context.Response.WriteAsync("<a href=\"/\">Sign In</a>");
+                    await context.Response.WriteAsync($"</body></html>");
+                    return;
+                }
+
                 if (!context.User.Identities.Any(identity => identity.IsAuthenticated))
                 {
                     await context.Authentication.ChallengeAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties { RedirectUri = "/" });
                     return;
                 }
 
+                // Summarize the authentication information
                 context.Response.ContentType = "text/html";
-                await context.Response.WriteAsync($"<html><body>Hello Authenticated User {context.User.Identity.Name}<br>{Environment.NewLine}");
-                await context.Response.WriteAsync("Claims:<br>" + Environment.NewLine);
+                await context.Response.WriteAsync($"<html><body><h1>Users:</h1>{context.User.Identity.Name}<br>{Environment.NewLine}");
+
+                await context.Response.WriteAsync("<h1>Claims:</h1>");
+                await context.Response.WriteAsync("<table><tr><th>Type</th><th>Value</th></tr>");
                 foreach (var claim in context.User.Claims)
                 {
-                    await context.Response.WriteAsync($"{claim.Type}: {claim.Value}<br>{Environment.NewLine}");
+                    await context.Response.WriteAsync($"<tr><td>{claim.Type}</td><td>{claim.Value}</td></tr>");
                 }
+                await context.Response.WriteAsync("</table>");
 
-                await context.Response.WriteAsync("Tokens:<br>" + Environment.NewLine);
+                await context.Response.WriteAsync("<h1>Tokens:</h1>");
                 try
                 {
                     // Use ADAL to get the right token
@@ -140,9 +165,16 @@ namespace OpenIdConnect.AzureAdSample
                     await context.Response.WriteAsync($"AquireToken error: {ex.Message}<br>{Environment.NewLine}");
                 }
 
-                await context.Response.WriteAsync("<a href=\"/signout\">Sign Out</a>");
+                await context.Response.WriteAsync("<h1>Actions:</h1>");
+                await WriteHtmlLink(context, "Sign Out", "/signout");
+                await WriteHtmlLink(context, "Sign Out from STS", "/signout-remote");
                 await context.Response.WriteAsync($"</body></html>");
             });
+        }
+
+        private static Task WriteHtmlLink(HttpContext context, string name, string path)
+        {
+            return context.Response.WriteAsync($"<a href=\"{path}\">{name}</a><br>");
         }
     }
 }
