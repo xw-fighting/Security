@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
@@ -18,8 +17,6 @@ namespace OpenIdConnect.AzureAdSample
 {
     public class Startup
     {
-        private const string GraphResourceID = "https://graph.windows.net";
-
         public Startup(IHostingEnvironment env)
         {
             var builder = new ConfigurationBuilder()
@@ -101,80 +98,85 @@ namespace OpenIdConnect.AzureAdSample
 
             app.Run(async context =>
             {
-                if (context.Request.Path.Equals("/signout"))
+                if (context.Request.Path.Equals("/signin"))
+                {
+                    if (context.User.Identities.Any(identity => identity.IsAuthenticated))
+                    {
+                        // User has already signed in
+                        context.Response.Redirect("/");
+                        return;
+                    }
+
+                    await context.Authentication.ChallengeAsync(
+                        OpenIdConnectDefaults.AuthenticationScheme,
+                        new AuthenticationProperties { RedirectUri = "/" });
+                }
+                else if (context.Request.Path.Equals("/signout"))
                 {
                     await context.Authentication.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                     context.Response.ContentType = "text/html";
                     await context.Response.WriteAsync($"<html><body>Signing out {context.User.Identity.Name}<br>{Environment.NewLine}");
-                    await context.Response.WriteAsync("<a href=\"/\">Sign In</a>");
+                    await context.Response.WriteAsync("<a href=\"/signin\">Sign In</a>");
                     await context.Response.WriteAsync($"</body></html>");
-                    return;
                 }
-
-                if (context.Request.Path.Equals("/signout-remote"))
+                else if (context.Request.Path.Equals("/signout-remote"))
                 {
                     await context.Authentication.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                     await context.Authentication.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties
                     {
                         RedirectUri = "/signedout"
                     });
-
-                    return;
                 }
-
-                if (context.Request.Path.Equals("/signedout"))
+                else if (context.Request.Path.Equals("/signedout"))
                 {
                     context.Response.ContentType = "text/html";
                     await context.Response.WriteAsync($"<html><body>You have been signed out.<br>{Environment.NewLine}");
-                    await context.Response.WriteAsync("<a href=\"/\">Sign In</a>");
+                    await context.Response.WriteAsync("<a href=\"/signin\">Sign In</a>");
                     await context.Response.WriteAsync($"</body></html>");
-                    return;
                 }
-
-                if (!context.User.Identities.Any(identity => identity.IsAuthenticated))
+                else if (!context.User.Identities.Any(identity => identity.IsAuthenticated))
                 {
-                    await context.Authentication.ChallengeAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties { RedirectUri = "/" });
-                    return;
+                    context.Response.ContentType = "text/html";
+                    await context.Response.WriteAsync($"<html><body>You haven't signed in yet.<br>{Environment.NewLine}");
+                    await context.Response.WriteAsync("<a href=\"/signin\">Sign In</a>");
+                    await context.Response.WriteAsync($"</body></html>");
                 }
-
-                // Summarize the authentication information
-                context.Response.ContentType = "text/html";
-                await context.Response.WriteAsync($"<html><body><h1>Users:</h1>{context.User.Identity.Name}<br>{Environment.NewLine}");
-
-                await context.Response.WriteAsync("<h1>Claims:</h1>");
-                await context.Response.WriteAsync("<table><tr><th>Type</th><th>Value</th></tr>");
-                foreach (var claim in context.User.Claims)
+                else
                 {
-                    await context.Response.WriteAsync($"<tr><td>{claim.Type}</td><td>{claim.Value}</td></tr>");
-                }
-                await context.Response.WriteAsync("</table>");
+                    // Summarize the authentication information
+                    context.Response.ContentType = "text/html";
+                    await context.Response.WriteAsync($"<html><body><h1>Users:</h1>{context.User.Identity.Name}<br>{Environment.NewLine}");
 
-                await context.Response.WriteAsync("<h1>Tokens:</h1>");
-                try
-                {
-                    // Use ADAL to get the right token
-                    var authContext = new AuthenticationContext(authority, AuthPropertiesTokenCache.ForApiCalls(context, CookieAuthenticationDefaults.AuthenticationScheme));
-                    var credential = new ClientCredential(clientId, clientSecret);
-                    string userObjectID = context.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier").Value;
-                    var result = await authContext.AcquireTokenSilentAsync(resource, credential, new UserIdentifier(userObjectID, UserIdentifierType.UniqueId));
+                    await context.Response.WriteAsync("<h1>Claims:</h1>");
+                    await context.Response.WriteAsync("<table><tr><th>Type</th><th>Value</th></tr>");
+                    foreach (var claim in context.User.Claims)
+                    {
+                        await context.Response.WriteAsync($"<tr><td>{claim.Type}</td><td>{claim.Value}</td></tr>");
+                    }
+                    await context.Response.WriteAsync("</table>");
 
-                    await context.Response.WriteAsync($"access_token: {result.AccessToken}<br>{Environment.NewLine}");
-                }
-                catch (Exception ex)
-                {
-                    await context.Response.WriteAsync($"AquireToken error: {ex.Message}<br>{Environment.NewLine}");
-                }
+                    await context.Response.WriteAsync("<h1>Tokens:</h1>");
+                    try
+                    {
+                        // Use ADAL to get the right token
+                        var authContext = new AuthenticationContext(authority, AuthPropertiesTokenCache.ForApiCalls(context, CookieAuthenticationDefaults.AuthenticationScheme));
+                        var credential = new ClientCredential(clientId, clientSecret);
+                        string userObjectID = context.User.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier").Value;
+                        var result = await authContext.AcquireTokenSilentAsync(resource, credential, new UserIdentifier(userObjectID, UserIdentifierType.UniqueId));
 
-                await context.Response.WriteAsync("<h1>Actions:</h1>");
-                await WriteHtmlLink(context, "Sign Out", "/signout");
-                await WriteHtmlLink(context, "Sign Out from STS", "/signout-remote");
-                await context.Response.WriteAsync($"</body></html>");
+                        await context.Response.WriteAsync($"access_token: {result.AccessToken}<br>{Environment.NewLine}");
+                    }
+                    catch (Exception ex)
+                    {
+                        await context.Response.WriteAsync($"AquireToken error: {ex.Message}<br>{Environment.NewLine}");
+                    }
+
+                    await context.Response.WriteAsync("<h1>Actions:</h1>");
+                    await context.Response.WriteAsync($"<a href=\"signout\">Sign out</a><br>");
+                    await context.Response.WriteAsync($"<a href=\"signout-remote\">Sign Out from Azure Active Directory</a><br>");
+                    await context.Response.WriteAsync($"</body></html>");
+                }
             });
-        }
-
-        private static Task WriteHtmlLink(HttpContext context, string name, string path)
-        {
-            return context.Response.WriteAsync($"<a href=\"{path}\">{name}</a><br>");
         }
     }
 }
